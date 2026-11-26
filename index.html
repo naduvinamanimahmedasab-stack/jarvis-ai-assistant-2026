@@ -1,0 +1,252 @@
+
+<!DOCTYPE html>
+<html lang="kn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS AI</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#08111f;color:#00eaff;
+ font-family:Arial,sans-serif;text-align:center;
+ min-height:100vh;
+}
+header{
+ padding:25px;font-size:30px;
+ letter-spacing:6px;font-weight:bold;
+}
+.status{color:#8ba6c0;font-size:13px}
+.orb{
+ width:145px;height:145px;border-radius:50%;
+ margin:35px auto;border:3px solid #00eaff;
+ box-shadow:0 0 35px #00eaff;
+ animation:pulse 2s infinite;
+}
+@keyframes pulse{
+ 50%{box-shadow:0 0 65px #00eaff,0 0 100px #006aff}
+}
+.container{
+ padding:15px;max-width:600px;margin:auto;
+}
+input,select,textarea{
+ width:100%;padding:14px;margin:8px 0;
+ border-radius:10px;border:1px solid #00bcd4;
+ background:#10243b;color:white;font-size:15px;
+}
+textarea{height:85px;resize:vertical}
+button{
+ padding:13px 17px;margin:5px;
+ border:0;border-radius:9px;
+ background:#00d9ee;color:#00121b;
+ font-weight:bold;font-size:14px;
+}
+button:active{transform:scale(.96)}
+#answer{
+ margin-top:20px;padding:18px;
+ background:#10243b;border-radius:12px;
+ color:white;text-align:left;
+ min-height:100px;white-space:pre-wrap;
+ line-height:1.6;overflow-wrap:anywhere;
+}
+.search{display:flex;align-items:center;gap:8px;color:white}
+.search input{width:auto}
+footer{padding:25px;color:#66849e;font-size:12px}
+</style>
+</head>
+
+<body>
+
+<header>J.A.R.V.I.S</header>
+<p class="status">PERSONAL AI VOICE ASSISTANT</p>
+
+<div class="orb" id="orb"></div>
+
+<div class="container">
+
+<input
+ id="apiKey"
+ type="password"
+ placeholder="Enter your Gemini API Key"
+ autocomplete="off">
+
+<select id="language">
+ <option value="kn-IN">Kannada</option>
+ <option value="en-US">English</option>
+ <option value="hi-IN">Hindi</option>
+</select>
+
+<textarea id="question"
+ placeholder="Hello JARVIS, how can I help you?"></textarea>
+
+<label class="search">
+ <input type="checkbox" id="webSearch" checked>
+ Enable Google Search
+</label>
+
+<button onclick="askAI()">ASK JARVIS</button>
+<button onclick="listen()">🎤 SPEAK</button>
+<button onclick="stopVoice()">⏹ STOP</button>
+<button onclick="clearChat()">CLEAR</button>
+
+<div id="answer">
+Hello! I am JARVIS AI.
+How can I help you?
+</div>
+
+</div>
+
+<footer>
+JARVIS AI | Powered by Gemini
+</footer>
+
+<script>
+
+let recognition = null;
+
+async function askAI(){
+
+ const key = document.getElementById("apiKey").value.trim();
+ const q = document.getElementById("question").value.trim();
+ const out = document.getElementById("answer");
+
+ if(!key){
+  out.innerText="Please enter your Gemini API Key.";
+  return;
+ }
+
+ if(!q){
+  out.innerText="Please ask me something.";
+  return;
+ }
+
+ out.innerText="JARVIS is thinking...";
+
+ const body={
+  contents:[{
+   parts:[{
+    text:"You are JARVIS, a helpful personal AI assistant. Reply naturally in the language used by the user. Support Kannada, Hindi and English. Be accurate and friendly. User question: "+q
+   }]
+  }]
+ };
+
+ if(document.getElementById("webSearch").checked){
+  body.tools=[{google_search:{}}];
+ }
+
+ try{
+
+  const response=await fetch(
+   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+   {
+    method:"POST",
+    headers:{
+     "Content-Type":"application/json",
+     "x-goog-api-key":key
+    },
+    body:JSON.stringify(body)
+   }
+  );
+
+  const data=await response.json();
+
+  if(!response.ok){
+   throw new Error(data.error?.message || "API error");
+  }
+
+  const result=data.candidates?.[0]?.content?.parts
+   ?.map(p=>p.text||"").join("\n");
+
+  if(!result){
+   throw new Error("No response received.");
+  }
+
+  out.innerText=result;
+  speak(result);
+
+ }catch(error){
+  out.innerText="JARVIS Error: "+error.message;
+ }
+
+}
+
+function listen(){
+
+ const SpeechRecognition =
+ window.SpeechRecognition ||
+ window.webkitSpeechRecognition;
+
+ if(!SpeechRecognition){
+  alert("Speech recognition is not supported. Try Chrome.");
+  return;
+ }
+
+ if(recognition){
+  recognition.stop();
+ }
+
+ recognition=new SpeechRecognition();
+ recognition.lang=document.getElementById("language").value;
+ recognition.continuous=false;
+ recognition.interimResults=false;
+
+ recognition.onstart=()=>{
+  document.getElementById("answer").innerText=
+  "JARVIS is listening...";
+ };
+
+ recognition.onresult=(event)=>{
+  const text=event.results[0][0].transcript;
+  document.getElementById("question").value=text;
+  askAI();
+ };
+
+ recognition.onerror=(event)=>{
+  document.getElementById("answer").innerText=
+  "Voice error: "+event.error;
+ };
+
+ recognition.start();
+
+}
+
+function speak(text){
+
+ speechSynthesis.cancel();
+
+ const voice=new SpeechSynthesisUtterance(text);
+ voice.lang=document.getElementById("language").value;
+ voice.rate=1;
+ voice.pitch=1;
+
+ speechSynthesis.speak(voice);
+
+}
+
+function stopVoice(){
+ speechSynthesis.cancel();
+
+ if(recognition){
+  recognition.stop();
+ }
+}
+
+function clearChat(){
+ stopVoice();
+ document.getElementById("question").value="";
+ document.getElementById("answer").innerText=
+ "Hello! I am JARVIS. Ask me anything.";
+}
+
+document.getElementById("question")
+.addEventListener("keydown",function(e){
+ if(e.key==="Enter" && !e.shiftKey){
+  e.preventDefault();
+  askAI();
+ }
+});
+
+</script>
+</body>
+</html>
